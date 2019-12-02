@@ -38,9 +38,9 @@ app.use(methodOverride('_method'));
 app.get('/', function(req, res) {
 	if (!req.session.authenticated) {
 		res.redirect('/login');
-	}
+	} else {
 	res.redirect('/restaurant');
-	
+	}
 });
 
 //Login
@@ -88,8 +88,8 @@ app.post('/register', urlencodedParser, function(req, res) {
 	      		var newUser = new user({ name: req.body.name , password: req.body.password});
 	      		newUser.save(function (err) {
 				if (err) return handleError(err);
-				res.send('success');
-				res.redirect('login');
+				res.send('<a href="/">Success! Return to login page</a>');
+				//res.redirect('login');
 	    		})
 	  	}
 	})
@@ -98,9 +98,11 @@ app.post('/register', urlencodedParser, function(req, res) {
 
 //Logout
 app.get('/logout', (req, res) => {
-	res.render('login.ejs');
-	res.end();
-	req.session = null;
+	
+	
+	req.session.authenticated = false;
+  	req.session.username = "";
+	res.redirect('/login');
 });
 
 //create
