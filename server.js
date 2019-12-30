@@ -1,15 +1,4 @@
 
-const http = require('http');
-const url = require('url');
-const fs = require('fs');
-const formidable = require('formidable');
-const MongoClient = require('mongodb').MongoClient;
-const mongoose = require('mongoose');
-const assert = require('assert');
-const ObjectID = require('mongodb').ObjectID;
-const mongourl = 'mongodb+srv://miwa:123@cluster0-26uhj.mongodb.net/test?retryWrites=true&w=majority';
-const dbName = 'test';
-const methodOverride = require('method-override'); //use delete method
 
 var restaurant = require('./model/restaurant.js');
 var user = require('./model/user.js');
@@ -18,522 +7,133 @@ var urlencodedParser = bodyParser.urlencoded({ extended: false});
 
 var session = require('cookie-session');
 var express = require('express');
-app = express();
-app.set('trust proxy',1);
-app.use(session({
-	name: 'session',
-	keys: ['key1', 'key2']
-}));
+var app = express();
 
-
-//conect DataBase
-mongoose.connect(mongourl, {useMongoClient: true,});
-var db = mongoose.connection;
-
-
+//exam
 app.set('view engine', 'ejs');
-app.use(methodOverride('_method'));
+var ExifImage = require('exif').ExifImage;
+var bodyParser = require('body-parser');
+var urlencodedParser = bodyParser.urlencoded({ extended: false});
+var fs = require('fs');
+var formidable = require('formidable');
+  http = require('http');
+  url = require('url');
 
 
-app.get('/', function(req, res) {
-	if (!req.session.authenticated) {
-		res.redirect('/login');
-	} else {
-	res.redirect('/restaurant');
-	}
+//upload page
+app.get('/', (req, res) => {
+  res.redirect('/upload');
+  res.end();
+  
 });
 
-//Login
-app.get('/login', (req, res) => {
-	res.render('login.ejs');
-	res.end();
-	
+app.get('/upload', (req, res) => {
+  res.render('upload.ejs');
+  res.end();
+  
 });
 
+//change exif coordinate to google map coordinate
+function ConvertCoord (degrees, minutes, seconds, direction){
+  var dd = degrees + (minutes/60) + (seconds/3600);
+  if (direction == "S" || direction == "W") {
+    dd = dd * -1;
+  }
+  return dd;
+}
 
-app.post('/login', urlencodedParser, (req, res) => {
-	user.findOne({name:req.body.name}).exec(function (err, userExist) {
-
-		if(userExist){
-			if(userExist.name == req.body.name && userExist.password == req.body.password){
-				req.session.authenticated = true;
-        			req.session.username = userExist.name;
-        			res.redirect('/restaurant');
-			}else{
-        			res.send('The password is incorrect');
-				
-      			}
-		}else{
-			res.send('This user does not exist');
-			
-
-		}
-		if (err) return handleError(err);
-	})
-});
-
-
-//Register
-app.get('/register', (req, res) => {
-	res.render('register.ejs');
-	res.end();
-	
-});
-
-app.post('/register', urlencodedParser, function(req, res) {
-	user.findOne({name:req.body.name}).exec(function (err, userExist) {
-		if(userExist){
-	      		res.send('User Exist!')
-	    	}else{
-	      		var newUser = new user({ name: req.body.name , password: req.body.password});
-	      		newUser.save(function (err) {
-				if (err) return handleError(err);
-				res.send('<a href="/">Success! Return to login page</a>');
-				//res.redirect('login');
-	    		})
-	  	}
-	})
-	
-});
-
-//Logout
-app.get('/logout', (req, res) => {
-	
-	
-	req.session.authenticated = false;
-  	req.session.username = "";
-	res.redirect('/login');
-});
-
-//create
-app.get('/create', (req, res) => {
-	res.render('upload.ejs');
-});
-
-
-//new restaurant
-app.post('/fileupload', (req,res) => {
+//get result
+app.post('/uploadPhoto', (req,res) => {
   let form = new formidable.IncomingForm();
   form.parse(req, (err, fields, files) => {
-    console.log(JSON.stringify(files));
-    if (files.filetoupload.size == 0) {
-      res.status(500).end("No file uploaded!");  
-    }
-    let filename = files.filetoupload.path;
-    /*if (fields.restaurant_id) {
-      var restaurant_id = (fields.restaurant_id.length > 0) ? fields.restaurant_id : "untitled";
-      console.log(`restaurant_id = ${restaurant_id}`);
-    }*/
-    if (fields.restaurant_name) {
-      var restaurant_name = (fields.restaurant_name.length > 0) ? fields.restaurant_name : "n/a";
-      console.log(`restaurant_name = ${restaurant_name}`);
-    }
-    if (fields.borough) {
-      var borough= (fields.borough.length > 0) ? fields.borough : "n/a";
-      console.log(`borough = ${borough}`);
-    }
-    if (fields.cuisine) {
-      var cuisine= (fields.cuisine.length > 0) ? fields.cuisine : "n/a";
-      console.log(`cuisine = ${cuisine}`);
-    }
-    if (fields.street) {
-      var street= (fields.street.length > 0) ? fields.street : "n/a";
-      console.log(`street = ${street}`);
-    }
-    if (fields.building) {
-      var building= (fields.building.length > 0) ? fields.building : "n/a";
-      console.log(`building = ${building}`);
-    }
-    if (fields.zipcode) {
-      var zipcode= (fields.zipcode.length > 0) ? fields.zipcode : "n/a";
-      console.log(`zipcode = ${zipcode}`);
-    }
-    if (fields.lat) {
-      var lat= (fields.lat.length > 0) ? fields.lat : "n/a";
-      console.log(`lat = ${lat}`);
-    }
-    if (fields.lon) {
-      var lon= (fields.lon.length > 0) ? fields.lon : "n/a";
-      console.log(`lon = ${lon}`);
-    }
-    if (fields.owner) {
-      var owner= (fields.owner.length > 0) ? fields.owner : "n/a";
-      console.log(`owner = ${owner}`);
-    }
-    if (files.filetoupload.type) {
-      var mimetype = files.filetoupload.type;
-      console.log(`mimetype = ${mimetype}`);
-    }
+      console.log(JSON.stringify(files));
 
-    if (!mimetype.match(/^image/)) {
-      res.status(500).end("Upload file not image!");
-      return;
-    }
-
-    fs.readFile(filename, (err,data) => {
-      let client = new MongoClient(mongourl);
-      client.connect((err) => {
-        try {
-          assert.equal(err,null);
-        } catch (err) {
-          res.status(500).end("MongoClient connect() failed!");
-        }
-        const db = client.db(dbName);
-        let new_r = {};
-        new_r['name'] = restaurant_name;
-	new_r['borough'] = borough;
-        new_r['cuisine'] = cuisine;
-        new_r['mimetype'] = mimetype;
-        new_r['street'] = street;
-        new_r['building'] = building;
-        new_r['zipcode'] = zipcode;
-        new_r['lat'] = lat;
-        new_r['lon'] = lon;
-        new_r['owner'] = owner;
-        new_r['image'] = new Buffer.from(data).toString('base64');
-        insertRestaurant(db,new_r,(result) => {
-          client.close();
-          //res.status(200).end('Restaurant was inserted into MongoDB!');
-	  res.end('<html><body><a href="/restaurant">Restaurant was inserted into MongoDB!</a></body></html>')
-        });
-      });
-    });
-  });
-});
-
-
-//list restaurants
-app.get('/restaurant', (req,res) => {
-  let client = new MongoClient(mongourl);
-  client.connect((err) => {
-    try {
-      assert.equal(err,null);
-    } catch (err) {
-      res.status(500).end("MongoClient connect() failed!");
-    }
-    console.log('Connected to MongoDB');
-    const db = client.db(dbName);
-    findRestaurant(db,{},(restaurants) => {
-      client.close();
-      console.log('Disconnected MongoDB');
-      res.render("reslist.ejs",{restaurants:restaurants});
-    });
-  });
-});
-
-const findRestaurant = (db,criteria,callback) => {
-  const cursor = db.collection("restaurants").find(criteria);
-  let restaurants = [];
-  cursor.forEach((doc) => {
-    restaurants.push(doc);
-  }, (err) => {
-    // done or error
-    assert.equal(err,null);
-    callback(restaurants);
-  })
-}
-
-function insertRestaurant(db,r,callback) {
-  db.collection('restaurants').insertOne(r,function(err,result) {
-    assert.equal(err,null);
-    console.log("insert was successful!");
-    console.log(JSON.stringify(result));
-    callback(result);
-  });
-}
-
-//Display
-app.get('/display', (req,res) => {
-  let client = new MongoClient(mongourl);
-  client.connect((err) => {
-    try {
-      assert.equal(err,null);
-    } catch (err) {
-      res.status(500).end("MongoClient connect() failed!");
-    }      
-    console.log('Connected to MongoDB');
-    const db = client.db(dbName);
-    let criteria = {};
-    criteria['_id'] = ObjectID(req.query._id);
-    findRestaurant(db,criteria,(restaurants) => {
-      client.close();
-      console.log('Disconnected MongoDB');
-      console.log('Restaurant returned = ' + restaurant.length);
-      let image = new Buffer(restaurants[0].image,'base64');     
-      console.log(restaurants[0].mimetype);
-      if (restaurants[0].mimetype.match(/^image/)) {
-        res.render('restaurant.ejs',{restaurants:restaurants});
-      } else {
-        res.status(500).end("Not JPEG format!!!");  
+      //no file
+      if (files.filetoupload.size == 0) {
+        res.status(500).end('<a href="/">No file uploaded!</a>');  
       }
-    });
-  });
-});
-
-//map
-app.get('/map', (req,res) => {
-  let client = new MongoClient(mongourl);
-  client.connect((err) => {
-    try {
-      assert.equal(err,null);
-    } catch (err) {
-      res.status(500).end("MongoClient connect() failed!");
-    }
-    console.log('Connected to MongoDB');
-    const db = client.db(dbName);
-    let criteria = {};
-    criteria['_id'] = ObjectID(req.query._id);
-    findRestaurant(db,criteria,(restaurants) => {
-      client.close();
-      console.log('Disconnected MongoDB');
-      console.log('Restaurant returned = ' + restaurants.length);	
-	res.render("leaflet.ejs", {restaurants:restaurants});
-	res.end(); 
-    }); 
- });
-});
-
-//search
-app.get('/search', (req,res) => {
-  let client = new MongoClient(mongourl);
-  client.connect((err) => {
-    try {
-      assert.equal(err,null);
-    } catch (err) {
-      res.status(500).end("MongoClient connect() failed!");
-    }
-    console.log('Connected to MongoDB');
-    const db = client.db(dbName);
-    let name = req.query.name;
- 	if (name != null) { var reg = new RegExp(name); }
-    findRestaurant(db,{"name":reg},(restaurants) => {
-      client.close();
-      console.log('Disconnected MongoDB');
-      res.render("list.ejs",{restaurants:restaurants});
-    });
-  });
-});
-
-const findrestaurant = (db,criteria,callback) => {
-  const cursor = db.collection("restaurant").find(criteria);
-  let restaurants = [];
-  cursor.forEach((doc) => {
-    restaurants.push(doc);
-  }, (err) => {
-    // done or error
-    assert.equal(err,null);
-    callback(restaurants);
-  })
-}	
-		
-//delete
-
-app.delete('/restaurant/:id', (req, res) => {
-	
-	restaurant.findByIdAndRemove(req.params.id, (error) => {
-		if (error) {
-			res.redirect('/restaurant')
-		} else {
-			res.redirect('/restaurant')
-		}
-	})
-
-});	
 
 
-const findGrade = (db,criteria,callback) => {
-  const cursor = db.collection("grade").find(criteria);
-  let grade = [];
-  cursor.forEach((doc) => {
-    grade.push(doc);
-  }, (err) => {
-    // done or error
-    assert.equal(err,null);
-    callback(grade);
-  })
-}
+      let filename = files.filetoupload.path;
+      if (files.filetoupload.type) {
+          var mimetype = files.filetoupload.type;
+          console.log(`mimetype = ${mimetype}`);
+      }
 
-//get edit data 
-app.get('/edit', (req,res) => {
-
-  let client = new MongoClient(mongourl);
-  client.connect((err) => {
-    try {
-      assert.equal(err,null);
-    } catch (err) {
-      res.status(500).end("MongoClient connect() failed!");
-    }      
-    console.log('Connected to MongoDB');
-    const db = client.db(dbName);
-    let criteria = {};
-    criteria['_id'] = ObjectID(req.query._id);
+      if (!mimetype.match(/^image/)) {
+          res.status(500).end("Upload file not image!");
+          return;
+      }
     
-    findRestaurant(db,criteria,(restaurant) => {
-      client.close();
-      console.log('Disconnected MongoDB');
-      console.log('Restaurant returned = ' + restaurant.length);
-      res.render('edit.ejs',{restaurant:restaurant})
-    });
-	
-  });
-});
+      var title = (fields.title.length > 0) ? fields.title : "n/a";
+      console.log(`title = ${title}`);
 
-app.post('/update', (req,res) => {
-  let form = new formidable.IncomingForm();
-  form.parse(req, (err, fields, files) => {
-    console.log(JSON.stringify(files));
-    if (files.filetoupload.size == 0) {
-      res.status(500).end("No file uploaded!");  
-    }
-    let filename = files.filetoupload.path;
-    /*if (fields.restaurant_id) {
-      var restaurant_id = (fields.restaurant_id.length > 0) ? fields.restaurant_id : "untitled";
-      console.log(`restaurant_id = ${restaurant_id}`);
-    }*/
-    if (fields.restaurant_name) {
-      var restaurant_name = (fields.restaurant_name.length > 0) ? fields.restaurant_name : "n/a";
-      console.log(`restaurant_name = ${restaurant_name}`);
-    }
-    if (fields.borough) {
-      var borough= (fields.borough.length > 0) ? fields.borough : "n/a";
-      console.log(`borough = ${borough}`);
-    }
-    if (fields.cuisine) {
-      var cuisine= (fields.cuisine.length > 0) ? fields.cuisine : "n/a";
-      console.log(`cuisine = ${cuisine}`);
-    }
-    if (fields.street) {
-      var street= (fields.street.length > 0) ? fields.street : "n/a";
-      console.log(`street = ${street}`);
-    }
-    if (fields.building) {
-      var building= (fields.building.length > 0) ? fields.building : "n/a";
-      console.log(`building = ${building}`);
-    }
-    if (fields.zipcode) {
-      var zipcode= (fields.zipcode.length > 0) ? fields.zipcode : "n/a";
-      console.log(`zipcode = ${zipcode}`);
-    }
-    if (fields.lat) {
-      var lat= (fields.lat.length > 0) ? fields.lat : "n/a";
-      console.log(`lat = ${lat}`);
-    }
-    if (fields.lon) {
-      var lon= (fields.lon.length > 0) ? fields.lon : "n/a";
-      console.log(`lon = ${lon}`);
-    }
-    if (fields.owner) {
-      var owner= (fields.owner.length > 0) ? fields.owner : "n/a";
-      console.log(`owner = ${owner}`);
-    }
-    if (files.filetoupload.type) {
-      var mimetype = files.filetoupload.type;
-      console.log(`mimetype = ${mimetype}`);
-    }
+      var description = (fields.description.length > 0) ? fields.description : "n/a";
+      console.log(`description = ${description}`);
 
-    if (!mimetype.match(/^image/)) {
-      res.status(500).end("Upload file not image!");
-      return;
-    }
-
+    var image = "n/a";
     fs.readFile(filename, (err,data) => {
-      let client = new MongoClient(mongourl);
-      client.connect((err) => {
-        try {
-          assert.equal(err,null);
-        } catch (err) {
-          res.status(500).end("MongoClient connect() failed!");
-        }
-        const db = client.db(dbName);
-        let new_r = {};
-        new_r['name'] = restaurant_name;
-	new_r['borough'] = borough;
-        new_r['cuisine'] = cuisine;
-        new_r['mimetype'] = mimetype;
-        new_r['street'] = street;
-        new_r['building'] = building;
-        new_r['zipcode'] = zipcode;
-        new_r['lat'] = lat;
-        new_r['lon'] = lon;
-        new_r['owner'] = owner;
-        new_r['image'] = new Buffer.from(data).toString('base64');
-        updateRestaurant(db,new_r,(result) => {
-          client.close();
-          res.status(200).end('Restaurant was updated into MongoDB!');
-	  res.end('<html><body><a href="/restaurants">Back</a></body></html>')
-        });
-      });
+      image = new Buffer.from(data).toString('base64');
     });
-  });
-});
 
-//get data to grade
-app.get('/grade', (req,res) => {
- let client = new MongoClient(mongourl);
-  client.connect((err) => {
+    //exif
+    
+    var lat = 0;
+    var lon = 0;
     try {
-      assert.equal(err,null);
-    } catch (err) {
-      res.status(500).end("MongoClient connect() failed!");
-    }      
-    console.log('Connected to MongoDB');
-    const db = client.db(dbName);
-    let criteria = {};
-    criteria['_id'] = ObjectID(req.query._id);
-    findRestaurant(db,criteria,(restaurant) => {
-      client.close();
-      console.log('Disconnected MongoDB');
-      console.log('Restaurant returned = ' + restaurant.length);
-      res.render('grade.ejs',{restaurant:restaurant})
-    });      
-  });
-});
-	
-app.post('/grade', (req,res) => {
-  let form = new formidable.IncomingForm();
-  form.parse(req, (err, fields, files) => {
-    console.log(JSON.stringify(files));
-    if (fields.score) {
-      var score = (fields.score.length > 0) ? fields.score : "n/a";
-      console.log(`score = ${score}`);
-    }
-      let client = new MongoClient(mongourl);
-      client.connect((err) => {
-        try {
-          assert.equal(err,null);
-        } catch (err) {
-          res.status(500).end("MongoClient connect() failed!");
-        }
-        const db = client.db(dbName);
-        let new_r = {};
-        new_r['score'] = score;
-        insertGrade(db,new_r,(result) => {
-          client.close();	
-          res.status(200).end("<html><body>Graded<br><a href=/restaurant>Click here to go back</a></body></html>");
-        });
+      new ExifImage({ image : filename }, function (error, exifData) {
+        if (error)
+            console.log('Error1: '+error.message);
+        else
+            //console.log(exifData); // Do something with your data!
+          //var make = (exifData.image.Make > 0 ) ? exifData.image.Make : "n/a";
+          //make = exifData.image.Make;
+          var make = (exifData.image.Make.length > 0) ? exifData.image.Make : "n/a";
+          var model = (exifData.image.Model.length > 0) ? exifData.image.Model : "n/a";
+
+          var createdon = exifData.exif.CreateDate;
+
+          console.log('Make: '+ exifData.image.Make);
+            console.log('Model: '+ exifData.image.Model);
+            console.log('Created on: '+ exifData.exif.CreateDate);
+
+            lat = ConvertCoord(exifData.gps.GPSLatitude[0],exifData.gps.GPSLatitude[1],exifData.gps.GPSLatitude[2], exifData.gps.GPSLatitudeRef);
+          lon = ConvertCoord(exifData.gps.GPSLongitude[0],exifData.gps.GPSLongitude[1],exifData.gps.GPSLongitude[2], exifData.gps.GPSLongitudeRef);
+            res.render('result.ejs', {
+                title: title,
+            description: description, 
+            make: make,  
+            model: model,
+            createdon: createdon,
+            mimetype: mimetype, 
+            image: image,
+            lat:lat,
+            lon:lon
+          });   
+
+
       });
-   
-  });
-});		
-	
-function insertGrade(db,r,callback) {
-  db.collection('grade').insertOne(r,function(err,result) {
-    assert.equal(err,null);
-    console.log("Graded!");
-    console.log(JSON.stringify(result));
-    callback(result);
-  });
-}
-
-function updateRestaurant(db,r,callback) {
-  db.collection('restaurant').updateOne(r,function(err,result) {
-    assert.equal(err,null);
-    console.log("updated!");
-    console.log(JSON.stringify(result));
-    callback(result);
-  });
-}
+    } catch (error) {
+      console.log('Error: ' + error.message);
+    }
 
 
+
+  })
+
+
+});
+
+//open map
+app.get('/map', (req,res) => {
+  
+  res.render("leaflet.ejs", {
+    lat:req.query.lat, 
+    lon:req.query.lon
+  });
+  res.end(); 
+    
+ 
+});
 
 app.listen(process.env.PORT || 8099);

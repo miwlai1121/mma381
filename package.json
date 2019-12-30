@@ -7,6 +7,7 @@
         "body-parser": "*",
         "cookie-session": "latest",
         "ejs": "*",
+        "exif": "^0.6.0",
         "express": "latest",
         "formidable": "latest",
         "method-override": "^3.0.0",

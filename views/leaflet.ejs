@@ -16,7 +16,7 @@
       <script>
          // Creating map options
          var mapOptions = {
-            center: [<%=restaurants[0].lat%>,<%=restaurants[0].lon%>],
+            center: [<%=lat%>,<%=lon%>],
             zoom: 15
          }
          
@@ -29,11 +29,14 @@
          // Adding layer to the map
          map.addLayer(layer);
          // Creating a marker
-         var marker = L.marker([<%=restaurants[0].lat%>,<%=restaurants[0].lon%>]);
+         var marker = L.marker([<%=lat%>,<%=lon%>]);
          // Adding marker to the map
          marker.addTo(map);
       </script>
-	<a href="/display?_id=<%= restaurants[0]._id%>">Back</a>
+	<br>
+   <a href="javascript: history.go(-1)">Return</a><br>
+   <a href="/">Home</a>
+
    </body>
    
 </html>
